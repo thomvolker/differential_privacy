@@ -26,7 +26,7 @@ drugs <- rbinom(2000, 1, 0.3)
 ```
 
 
-We can make the query "what proportion of the sample uses harddrugs?" differentially private by adding noise to the results of this query. Noise can be added by making use of a coin flip: for each observation $i$, we flip an unfair coin, with probability of getting heads equal to $P(head) = p$. If the coin comes up head, we leave the truthful answer as is. If the coin comes up tail, we flip the coin again. If head comes up, we report $1 = Yes$, if tail comes up, we return the answer $0 = No$. Now, the user is protected by the probability $p$. If $p$ equals $1$, only true answers are used to return the data, but if $p < 1$, there is a probability $p$ that not someone's real proportion is returned, but fabricated answer.
+We can make the query "what proportion of the sample uses harddrugs?" differentially private by adding noise to the results of this query. Noise can be added by making use of a coin flip: for each observation $i$, we flip an unfair coin, with probability of getting heads equal to $P(head) = p$. If the coin comes up head, we leave the truthful answer as is. If the coin comes up tail, we flip the coin again. If head comes up, we report $1 = \text{Yes}$, if tail comes up, we return the answer $0 = \text{No}$. Now, the user is protected by the probability $p$. If $p$ equals $1$, only true answers are used to return the data, but if $p < 1$, there is a probability $p$ that not someone's real proportion is returned, but fabricated answer.
 
 ```{r, warning=F, message=F}
 library(purrr)
@@ -38,7 +38,7 @@ dp <- function(responses, p) {
   n      <- length(responses)
   keep   <- rbinom(n, 1, p)
   change <- rbinom(n, 1, p)
-  ifelse(keep == 1, drugs, change)
+  ifelse(keep == 1, responses, change)
 }
 
 prop_drugs <- function(dp, p) {
@@ -59,7 +59,24 @@ tibble(`Pr(heads)` = seq(0.001,1,0.001),
   transition_reveal(`Pr(heads)`) +
   ylim(0,1) +
   theme(legend.position = "none")
-
 ```
 
 The more noise we add, the closer we come to the true population estimate, and the less variance around this estimate there is.
+
+```{r, message=F, warning=F}
+tibble(`Sample size`= 1:2000 * 10,
+       `Pr(drugs)` = map_dbl(`Sample size`, 
+                             ~ rbinom(.x, 1, 0.2) %>% 
+                               dp(0.1) %>% 
+                               prop_drugs(0.1))) %>%
+  ggplot(aes(x = `Sample size`, y = `Pr(drugs)`)) +
+  geom_hline(yintercept = 0.2, alpha = 0.2) +
+  geom_line(aes(group = 1, col = `Pr(drugs)`), size = 0.5) +
+  theme_classic() +
+  transition_reveal(`Sample size`) +
+  ylim(0,1) +
+  theme(legend.position = "none")
+```
+
+The same holds for the sample size. Given the same amount of added noise ($p = 0.1$ in this case), more people allow to obtain a more accurate estimate of the true proportion, even if you only obtain the true estimate of $10\%$ of the cases, and random noise for all others.
+
