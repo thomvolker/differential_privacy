@@ -1,0 +1,65 @@
+---
+title: "Differential privacy as randomized responses"
+author: 
+- Thom Volker
+- Utrecht University
+date: "`r format(Sys.time(), '%d-%m-%Y')`"
+output: 
+  html_document:
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Randomized responses can be seen as differentially private, because individuals are protected by "plausible deniability". Each person can argue that the response is not correct, because the answer is due to a random coin flip.
+
+So, let's consider a data set in which the sensitive question 'have you ever used harddrugs?' is recorded for $n = 2000$ observations. For each observation $i = 1, 2, \dots, n$, the truthful answer is caputed in the data. 
+
+That is, we have the data
+```{r}
+set.seed(123)
+drugs <- rbinom(2000, 1, 0.3)
+```
+
+
+We can make the query "what proportion of the sample uses harddrugs?" differentially private by adding noise to the results of this query. Noise can be added by making use of a coin flip: for each observation $i$, we flip an unfair coin, with probability of getting heads equal to $P(head) = p$. If the coin comes up head, we leave the truthful answer as is. If the coin comes up tail, we flip the coin again. If head comes up, we report $1 = Yes$, if tail comes up, we return the answer $0 = No$. Now, the user is protected by the probability $p$. If $p$ equals $1$, only true answers are used to return the data, but if $p < 1$, there is a probability $p$ that not someone's real proportion is returned, but fabricated answer.
+
+```{r, warning=F, message=F}
+library(purrr)
+library(ggplot2)
+library(gganimate)
+library(tibble)
+
+dp <- function(responses, p) {
+  n      <- length(responses)
+  keep   <- rbinom(n, 1, p)
+  change <- rbinom(n, 1, p)
+  ifelse(keep == 1, drugs, change)
+}
+
+prop_drugs <- function(dp, p) {
+  p_n_n <- p + (1-p)*(1-p)
+  p_n_y <- (1-p)*(1-p)
+  
+  (1 - mean(dp) - p_n_n) / (p_n_y - p_n_n)
+}
+
+set.seed(123)
+
+tibble(`Pr(heads)` = seq(0.001,1,0.001),
+       `Pr(drugs)` = map_dbl(`Pr(heads)`, ~dp(drugs, .x) %>% prop_drugs(.x))) %>%
+  ggplot(aes(x = `Pr(heads)`, y = `Pr(drugs)`)) +
+  geom_hline(yintercept = mean(drugs), alpha = 0.2) +
+  geom_line(aes(group = 1, col = `Pr(drugs)`), size = 0.5) +
+  theme_classic() +
+  transition_reveal(`Pr(heads)`) +
+  ylim(0,1) +
+  theme(legend.position = "none")
+
+```
+
+The more noise we add, the closer we come to the true population estimate, and the less variance around this estimate there is.
