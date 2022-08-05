@@ -26,7 +26,7 @@ drugs <- rbinom(2000, 1, 0.3)
 ```
 
 
-We can make the query "what proportion of the sample uses harddrugs?" differentially private by adding noise to the results of this query. Noise can be added by making use of a coin flip: for each observation $i$, we flip an unfair coin, with probability of getting heads equal to $P(head) = p$. If the coin comes up head, we leave the truthful answer as is. If the coin comes up tail, we flip the coin again. If head comes up, we report $1 = \text{Yes}$, if tail comes up, we return the answer $0 = \text{No}$. Now, the user is protected by the probability $p$. If $p$ equals $1$, only true answers are used to return the data, but if $p < 1$, there is a probability $p$ that not someone's real proportion is returned, but fabricated answer.
+We can make the query "what proportion of the sample uses harddrugs?" differentially private by adding noise to the results of this query. Noise can be added by making use of a coin flip: for each observation $i$, we flip an unfair coin, with probability of getting heads equal to $P(head) = p_1$. If the coin comes up head, we leave the truthful answer as is. If the coin comes up tail, we another coin, with probability of heads $P(head) = p_2 = 0.5$. If head comes up, we report $1 = \text{Yes}$, if tail comes up, we return the answer $0 = \text{No}$. Now, the user is protected by the probability $p_1$. If $p_1$ equals $1$, only true answers are used to return the data, but if $p_1 < 1$, there is a probability $(1 - p_1)$ that the used response answer is the result of a random coin flip.
 
 ```{r, warning=F, message=F}
 library(purrr)
@@ -34,47 +34,49 @@ library(ggplot2)
 library(gganimate)
 library(tibble)
 
-dp <- function(responses, p) {
+dp <- function(responses, p1, p2) {
   n      <- length(responses)
-  keep   <- rbinom(n, 1, p)
-  change <- rbinom(n, 1, p)
+  keep   <- rbinom(n, 1, p1)
+  change <- rbinom(n, 1, p2)
   ifelse(keep == 1, responses, change)
 }
 
-prop_drugs <- function(dp, p) {
-  p_n_n <- p + (1-p)*(1-p)
-  p_n_y <- (1-p)*(1-p)
+prop_drugs <- function(dp, p1, p2) {
+  p_n_n <- p1 + (1-p1)*(1-p2)
+  p_n_y <- (1-p1)*(1-p2)
   
   (1 - mean(dp) - p_n_n) / (p_n_y - p_n_n)
 }
 
 set.seed(123)
 
-tibble(`Pr(heads)` = seq(0.001,1,0.001),
-       `Pr(drugs)` = map_dbl(`Pr(heads)`, ~dp(drugs, .x) %>% prop_drugs(.x))) %>%
+tibble(`Pr(heads)` = seq(0.00, 1, 0.001),
+       `Pr(drugs)` = map_dbl(`Pr(heads)`, 
+                             ~ dp(drugs, .x, 0.5) %>% 
+                               prop_drugs(.x, 0.5))) %>%
   ggplot(aes(x = `Pr(heads)`, y = `Pr(drugs)`)) +
   geom_hline(yintercept = mean(drugs), alpha = 0.2) +
   geom_line(aes(group = 1, col = `Pr(drugs)`), size = 0.5) +
   theme_classic() +
-  transition_reveal(`Pr(heads)`) +
   ylim(0,1) +
+  transition_reveal(`Pr(heads)`) +
   theme(legend.position = "none")
 ```
 
-The more noise we add, the closer we come to the true population estimate, and the less variance around this estimate there is.
+The less noise we add, the closer we come to the true population estimate, and the less variance around this estimate there is.
 
 ```{r, message=F, warning=F}
 tibble(`Sample size`= 1:2000 * 10,
        `Pr(drugs)` = map_dbl(`Sample size`, 
                              ~ rbinom(.x, 1, 0.2) %>% 
-                               dp(0.1) %>% 
-                               prop_drugs(0.1))) %>%
+                               dp(0.1, 0.5) %>% 
+                               prop_drugs(0.1, 0.5))) %>%
   ggplot(aes(x = `Sample size`, y = `Pr(drugs)`)) +
   geom_hline(yintercept = 0.2, alpha = 0.2) +
   geom_line(aes(group = 1, col = `Pr(drugs)`), size = 0.5) +
   theme_classic() +
-  transition_reveal(`Sample size`) +
   ylim(0,1) +
+  transition_reveal(`Sample size`) +
   theme(legend.position = "none")
 ```
 
