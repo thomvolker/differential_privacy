@@ -76,5 +76,20 @@ tibble(`Sample size`= 1:2000 * 10,
   theme(legend.position = "none")
 ```
 
+```{r, message=F, warning=F}
+tibble(`Sample size`= seq(from = 1, to = 100, by = 0.1)^4,
+       `Pr(drugs)` = map_dbl(`Sample size`, 
+                             ~ rbinom(.x, 1, 0.2) %>% 
+                               dp(0.1, 0.5) %>% 
+                               prop_drugs(0.1, 0.5))) %>%
+  ggplot(aes(x = `Sample size`, y = `Pr(drugs)`)) +
+  geom_hline(yintercept = 0.2, alpha = 0.2) +
+  geom_line(aes(group = 1, col = `Pr(drugs)`), size = 0.5) +
+  theme_classic() +
+  ylim(0.15,0.25) +
+  transition_reveal(`Sample size`) +
+  theme(legend.position = "none")
+```
+
 The same holds for the sample size. Given the same amount of added noise ($p = 0.1$ in this case), more people allow to obtain a more accurate estimate of the true proportion, even if you only obtain the true estimate of $10\%$ of the cases, and random noise for all others.
 
